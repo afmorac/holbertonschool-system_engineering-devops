@@ -1,0 +1,16 @@
+[Diagram](images/diagram0.png)
+
+### Explanation
+A user types www.foobar.com in their browser. The domain name resolves via DNS (A record) to the server IP 8.8.8.8.  
+The request reaches the server, which contains:
+- **Web server (Nginx):** handles HTTP requests and serves static files.
+- **Application server:** runs the application logic.
+- **Application files:** the code base.
+- **Database (MySQL):** stores user and application data.
+
+The server communicates with the user’s computer using the HTTP protocol.
+
+**Issues:**
+- Single Point of Failure (if the server goes down, everything is unavailable).
+- Downtime during maintenance (restarting, deploying new code).
+- Cannot scale with high traffic.
