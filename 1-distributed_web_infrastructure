@@ -1,0 +1,38 @@
+[Link to diagram image](images/webInfraTask1.jpg)
+
+## Explanation
+
+### What was added and why
+- **HAProxy Load Balancer**: Distributes incoming traffic across multiple web/app servers to improve availability and scalability.
+- **Two Web/Application servers (Nginx + App server + App code)**: Allows horizontal scaling and reduces downtime if one server fails (Active-Active at the app tier).
+- **Database Primary-Replica (MySQL)**: Increases read scalability and provides data redundancy. Primary handles writes; Replica handles read-only queries and can be promoted if the Primary fails.
+
+### Load balancer algorithm
+- **Round Robin** (example): The LB forwards each new request to the next server in the list in a circular fashion. This is simple and balances average load when servers have similar capacity.
+
+### Active-Active vs Active-Passive
+- **Active-Active (used here at the web/app tier)**: Both servers actively serve traffic simultaneously, improving throughput and resilience.
+- **Active-Passive**: One active node serves traffic while the passive node stays on standby and only takes over during failure. This reduces split-brain risks but under-utilizes resources.
+
+### How Primary-Replica (Master-Slave) works in MySQL
+- **Primary**: Processes all **writes** (INSERT/UPDATE/DELETE) and can also serve reads.
+- **Replica**: Receives changes from the Primary via replication logs and serves **read-only** queries. It reduces read load on the Primary and can be promoted in case of failure.
+
+### Difference for the application
+- **Primary node**: The application directs **write operations** here (and optionally reads).
+- **Replica node**: The application sends **read-only queries** here to offload the Primary and improve performance.
+
+## Issues in this infrastructure
+
+### Single Points of Failure (SPOF)
+- **Load Balancer**: There is only one HAProxy instance; if it fails, the site is down.
+- **Primary DB for writes**: Only one node accepts writes; if it fails and no promotion/failover is done, write operations break.
+- **DNS or domain misconfiguration** can also be a SPOF if not redundant.
+
+### Security issues
+- **No firewall**: Servers are exposed; unnecessary ports may be reachable.
+- **No HTTPS**: Traffic is unencrypted (vulnerable to eavesdropping and tampering).
+
+### No monitoring
+- There is no visibility into uptime, latency, error rates, or database replication lag. Failures or slowdowns may go unnoticed.
+
