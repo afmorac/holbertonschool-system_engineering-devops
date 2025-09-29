@@ -1,0 +1,29 @@
+[Link to diagram image](images/webInfraTask3.jpg)
+
+## Scale Up – Explanation
+
+### What was added and why
+- **One additional server (HAProxy #2)**: We cluster the load balancer with the existing one using a virtual IP (VIP) via VRRP/keepalived.  
+  **Why:** The load balancer was a SPOF. With an Active–Passive pair, if the active LB fails, the passive one takes over the VIP and traffic continues.
+
+- **LB cluster configuration (HAProxy + VIP):**  
+  **Why:** High availability at the entry point. Health checks and failover reduce downtime during failures or maintenance.
+
+- **Split components by role (dedicated servers):**
+  - **Web tier (Nginx-only nodes):** Serve static assets and reverse proxy to the app tier.  
+    **Why:** Offloads TLS/HTTP concerns, enables independent horizontal scaling of web capacity.
+  - **Application tier (App servers):** Run the business logic (e.g., PHP-FPM, Gunicorn/uWSGI for Python, Node.js/PM2).  
+    **Why:** Isolates CPU/memory heavy code execution from web serving; scale app nodes independently from web nodes.
+  - **Database tier (MySQL Primary + Replica):** Primary handles writes; Replica serves reads and stands by for promotion.  
+    **Why:** Keeps data concerns separated, improves read throughput, and provides a path for recovery.
+
+### Application server vs Web server (README note)
+- **Web server (Nginx):** Terminates HTTP(S), handles routing/reverse proxy, serves static files efficiently, manages keep-alive, compression, caching headers. It **does not** execute business logic.
+- **Application server:** Executes dynamic application code (framework handlers, templates, APIs), manages sessions/auth, talks to the database and external services. It is **not** directly exposed to the Internet.
+
+### How this scales
+- Add more **Web** nodes for higher request fan-in or static delivery.
+- Add more **App** nodes for heavier dynamic workloads.
+- Use the LB’s algorithm (e.g., **leastconn** or **round-robin**) and health checks.
+- DB can scale reads with more replicas; writes still go to the Primary (consider automated failover).
+
