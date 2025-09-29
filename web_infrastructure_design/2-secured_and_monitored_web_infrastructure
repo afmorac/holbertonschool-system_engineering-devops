@@ -1,0 +1,59 @@
+[Link to diagram image](images/diagram2.png)
+
+## Explanation
+
+### What was added and why
+- **3 Firewalls (layered):**
+  - **Firewall #1 (Perimeter):** Only allows 443/TCP to the load balancer from the Internet. Blocks everything else.
+  - **Firewall #2 (App-tier):** Only allows traffic from the LB to the web/app servers (80/HTTP if SSL terminates at LB, or 443 if end-to-end TLS). SSH (22) restricted to admin IPs.
+  - **Firewall #3 (DB-tier):** Only allows MySQL 3306/TCP from the app servers to the DB. No Internet access.
+- **1 SSL Certificate (HTTPS at the LB):** Encrypts traffic from users to the edge, protecting confidentiality/integrity and enabling modern browser security (HSTS, secure cookies).
+- **3 Monitoring clients (agents):** Collect logs/metrics/traces from:
+  - Load balancer (LB)
+  - App servers
+  - Database (at least the Primary)
+  These agents ship data to a centralized monitoring platform (e.g., Sumo Logic/Datadog).
+
+### What are firewalls for?
+Firewalls enforce **least privilege** network access, reducing the attack surface:
+- Limit inbound/outbound ports per tier.
+- Prevent lateral movement across tiers.
+- Make policy explicit (who can talk to whom, on which port).
+
+### Why serve traffic over HTTPS?
+- **Confidentiality & integrity:** Prevent eavesdropping and tampering.
+- **Authentication:** Browser can verify the server identity via TLS certificates.
+- **Modern security posture:** Enables secure cookies, HSTS, and better SEO/user trust.
+
+### What is monitoring used for?
+- **Availability & performance:** Uptime, latency, error rates (4xx/5xx), RPS/QPS, saturation.
+- **Security signals:** Unusual traffic, repeated failures, suspicious logins.
+- **DB health:** Replication lag, slow queries, buffer pool, connections.
+
+### How does the monitoring tool collect data?
+- **Agents on hosts** tail logs (Nginx access/error, HAProxy logs, syslog, MySQL logs) and collect metrics (CPU, mem, disk, net, file descriptors).
+- Data is **pushed** over encrypted channels to the SaaS backend.
+- Optionally **exporters/status endpoints** are scraped (e.g., Nginx/HAProxy status).
+
+### How to monitor web server QPS (requests/queries per second)?
+Common approaches:
+1. **LB counters:** Enable HAProxy stats (or API) and read per-backend/front-end request rates.
+2. **Nginx status endpoint:** Enable `stub_status` (or a metrics module); scrape `requests` and compute RPS.
+3. **Log-based aggregation:** Parse Nginx access logs in 1-second/1-minute buckets in the monitoring tool to compute QPS per route/status.
+
+---
+
+## Issues in this “secured & monitored” design
+
+### 1) SSL termination at the load balancer
+- **Issue:** Traffic from LB → app servers may be **plaintext HTTP** inside the data center/VPC. If the internal network is compromised or shared, an attacker could snoop or tamper.
+- **Mitigation:** Use **end-to-end TLS** (LB re-encrypts to 443 on app servers), mutual TLS, strict internal ACLs, and certificate automation.
+
+### 2) Only one MySQL server accepts writes
+- **Issue:** The **Primary** is a bottleneck and a single write-SPOF. If it fails (or is overloaded), all writes fail until a **promotion/failover** occurs.
+- **Mitigation:** Automate failover (e.g., orchestrator), use virtual IPs or proxies for DB, consider multi-primary (with caution) or sharding for write scaling.
+
+### 3) Same components on every server (DB + Web + App on the same hosts)
+- **Issue:** Mixing roles increases **blast radius**, complicates patching, and weakens isolation (a web compromise may expose the DB on the same box). Resource contention (CPU/IO) can cause cascading failures.
+- **Mitigation:** **Separation of concerns**: dedicate hosts (or containers) per role; apply different hardening baselines and scaling policies for web/app vs DB.
+
